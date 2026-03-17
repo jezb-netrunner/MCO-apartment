@@ -13,6 +13,15 @@
 -- =====================================================
 
 -- ─────────────────────────────────────────────────────
+-- 0. Drop old permissive policies that allowed public SELECT
+-- ─────────────────────────────────────────────────────
+
+DROP POLICY IF EXISTS tenant_select ON tenants;
+DROP POLICY IF EXISTS admin_all ON tenants;
+DROP POLICY IF EXISTS settings_select ON settings;
+DROP POLICY IF EXISTS settings_admin_all ON settings;
+
+-- ─────────────────────────────────────────────────────
 -- 1. Enable RLS on all tables
 -- ─────────────────────────────────────────────────────
 
