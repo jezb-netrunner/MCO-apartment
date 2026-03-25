@@ -1051,21 +1051,6 @@
     box-sizing: border-box;
   }
   .filter-popover select:focus { border-color: var(--blue); }
-  .filter-popover input[type="month"] {
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--ink);
-    background: var(--bg);
-    border: 1.5px solid var(--border);
-    border-radius: 7px;
-    padding: 6px 10px;
-    cursor: pointer;
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  .filter-popover input[type="month"]:focus { border-color: var(--blue); }
   .filter-status-chips {
     display: flex;
     flex-wrap: wrap;
@@ -2205,7 +2190,10 @@ function renderAdmin() {
           </div>
           <div class="filter-popover-row">
             <div class="filter-popover-label">Month</div>
-            <input type="month" id="fp-month" value="${filterMonth}" onchange="filterMonth=this.value;applyFilters()">
+            <select id="fp-month" onchange="filterMonth=this.value;applyFilters()">
+              <option value="">All Months</option>
+              ${getAvailableMonths().map(m => '<option value="'+m.value+'" '+(filterMonth===m.value?'selected':'')+'>'+m.label+'</option>').join('')}
+            </select>
           </div>
           <div class="filter-popover-row">
             <div class="filter-popover-label">Status</div>
@@ -3441,6 +3429,16 @@ async function confirmGenerateBills() {
 // FILTER CONTROLS
 // ─────────────────────────────────────────────
 // ── NOTION-STYLE FILTER HELPERS ──
+function getAvailableMonths() {
+  const months = new Set();
+  tenants.forEach(t => t.bills.forEach(b => {
+    if (b.due) months.add(b.due.slice(0, 7));
+  }));
+  return Array.from(months).sort().reverse().map(v => ({
+    value: v,
+    label: new Date(v + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })
+  }));
+}
 function hasActiveFilters() { return !!(filterTenantId || filterMonth || filterStatuses.length); }
 function activeFilterCount() {
   let n = 0;
