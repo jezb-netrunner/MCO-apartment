@@ -2190,9 +2190,8 @@ function renderAdmin() {
           </div>
           <div class="filter-popover-row">
             <div class="filter-popover-label">Month</div>
-            <select id="fp-month" onchange="filterMonth=this.value;applyFilters()">
-              <option value="">All Months</option>
-              ${getAvailableMonths().map(m => '<option value="'+m.value+'" '+(filterMonth===m.value?'selected':'')+'>'+m.label+'</option>').join('')}
+            <select id="fp-month" onchange="if(this.value==='__more__'){this.value=filterMonth;renderMonthDropdown(true);return;}filterMonth=this.value;applyFilters()">
+              ${renderMonthOptions()}
             </select>
           </div>
           <div class="filter-popover-row">
@@ -3433,15 +3432,30 @@ async function confirmGenerateBills() {
 // FILTER CONTROLS
 // ─────────────────────────────────────────────
 // ── NOTION-STYLE FILTER HELPERS ──
-function getAvailableMonths() {
+function getAvailableMonths(showAll) {
   const months = new Set();
   tenants.forEach(t => t.bills.forEach(b => {
     if (b.due) months.add(b.due.slice(0, 7));
   }));
-  return Array.from(months).sort().reverse().map(v => ({
-    value: v,
-    label: new Date(v + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })
-  }));
+  const sorted = Array.from(months).sort().reverse();
+  const limit = showAll ? sorted.length : 12;
+  const visible = sorted.slice(0, limit);
+  // Always include the currently selected month even if it's older
+  if (filterMonth && !visible.includes(filterMonth) && sorted.includes(filterMonth)) visible.push(filterMonth);
+  return { months: visible.map(v => ({ value: v, label: new Date(v + '-02').toLocaleString('default', { month: 'long', year: 'numeric' }) })), hasMore: sorted.length > limit };
+}
+let _showAllMonths = false;
+function renderMonthOptions(showAll) {
+  const data = getAvailableMonths(showAll || _showAllMonths);
+  let html = '<option value="">All Months</option>';
+  html += data.months.map(m => '<option value="'+m.value+'" '+(filterMonth===m.value?'selected':'')+'>'+m.label+'</option>').join('');
+  if (data.hasMore) html += '<option value="__more__">Show older months\u2026</option>';
+  return html;
+}
+function renderMonthDropdown(showAll) {
+  _showAllMonths = !!showAll;
+  const sel = document.getElementById('fp-month');
+  if (sel) { sel.innerHTML = renderMonthOptions(showAll); sel.value = filterMonth; }
 }
 function hasActiveFilters() { return !!(filterTenantId || filterMonth || filterStatuses.length); }
 function activeFilterCount() {
@@ -3507,6 +3521,7 @@ function clearFilters() {
   filterTenantId = '';
   filterMonth    = '';
   filterStatuses = [];
+  _showAllMonths = false;
   renderAdmin();
 }
 // Close popovers when clicking outside
