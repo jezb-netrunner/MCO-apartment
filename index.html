@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://bxzfqjspoyvwosmpgeof.supabase.co https://api.anthropic.com; img-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://bxzfqjspoyvwosmpgeof.supabase.co; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';">
 <meta name="robots" content="noindex, nofollow">
 <meta name="description" content="Tenant billing portal for Orange Apartment, Baguio">
 <meta name="theme-color" content="#4169e1">
@@ -17,6 +17,15 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   :root {
     --blue:    #4169e1;
     --navy:    #2c3e50;
@@ -24,11 +33,12 @@
     --white:   #ffffff;
     --text:    #333333;
     --ink:     #111111;
-    --muted:   #7a8694;
+    --muted:   #5a6776;        /* WCAG AA on white (~6:1) */
     --border:  #e8e8ed;
-    --green:   #27ae60;
+    --green:   #1e8449;        /* darker green for AA on white */
     --rust:    #c0392b;
-    --orange:  #e67e22;
+    --orange:  #e67e22;        /* fill/icon use only — fails AA as text */
+    --orange-text: #b25e10;    /* AA-compliant alt for small text */
     --shadow:  0 8px 48px rgba(44,62,80,0.08);
     --shadow-sm: 0 2px 16px rgba(44,62,80,0.06);
   }
@@ -257,7 +267,7 @@
   .mini-status:hover { opacity: 0.78; transform: scale(0.97); }
   .status-paid    { background: #e8f5e9; color: var(--green); }
   .status-unpaid  { background: #fdecea; color: var(--rust); }
-  .status-overdue { background: #fff3e0; color: var(--orange); }
+  .status-overdue { background: #fff3e0; color: var(--orange-text); }
   .row-total { font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600; color: var(--ink); }
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
   .btn-icon {
@@ -383,89 +393,9 @@
 
 
 
-  /* RECEIPT SCAN */
-  .btn-receipt {
-    display: inline-flex; align-items: center; gap: 5px;
-    background: none; border: 1.5px solid var(--border);
-    border-radius: 6px; padding: 4px 10px;
-    font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
-    color: var(--muted); cursor: pointer; transition: all 0.15s; flex-shrink: 0;
-  }
-  .btn-receipt:hover { border-color: var(--blue); color: var(--blue); background: rgba(65,105,225,0.05); }
-  .btn-receipt:disabled { opacity: 0.45; cursor: not-allowed; }
-  .receipt-scanning {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 14px; border: 1.5px dashed var(--blue);
-    border-radius: 8px; margin-bottom: 8px;
-    background: rgba(65,105,225,0.03);
-    font-size: 12px; color: var(--blue); font-weight: 500;
-    font-family: 'Inter', sans-serif;
-  }
-  .scan-spinner {
-    width: 14px; height: 14px; border: 2px solid rgba(65,105,225,0.2);
-    border-top-color: var(--blue); border-radius: 50%;
-    animation: spin 0.7s linear infinite; flex-shrink: 0;
-  }
+  /* Spinner reused by the loading overlay */
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* RECEIPT CONFIRM MODAL */
-  #receipt-modal {
-    display: none; position: fixed; inset: 0;
-    background: rgba(17,17,17,0.55); backdrop-filter: blur(4px);
-    z-index: 3000; align-items: center; justify-content: center;
-  }
-  #receipt-modal.open { display: flex !important; }
-  .receipt-box {
-    background: var(--white); border-radius: 14px; padding: 32px;
-    width: 100%; max-width: 400px;
-    box-shadow: 0 32px 80px rgba(17,17,17,0.22);
-    animation: rise 0.25s cubic-bezier(.16,1,.3,1);
-  }
-  .receipt-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue); margin-bottom: 6px; }
-  .receipt-title { font-family: 'Source Serif 4', serif; font-size: 20px; font-weight: 600; color: var(--ink); margin-bottom: 20px; letter-spacing: -0.01em; }
-  .receipt-preview {
-    width: 100%; max-height: 160px; object-fit: cover;
-    border-radius: 8px; border: 1px solid var(--border); margin-bottom: 18px;
-  }
-  .receipt-extracted {
-    background: var(--bg); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px;
-  }
-  .receipt-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; }
-  .receipt-row:not(:last-child) { border-bottom: 1px solid var(--border); }
-  .receipt-row-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-  .receipt-row-value { font-size: 14px; font-weight: 600; color: var(--ink); font-family: 'Source Serif 4', serif; }
-  .receipt-note {
-    font-size: 12px; color: var(--muted); line-height: 1.5;
-    padding: 10px 14px; border-radius: 8px; margin-bottom: 18px;
-  }
-  .receipt-note.partial { background: #fff8e1; color: #b7791f; border: 1px solid #f6d860; }
-  .receipt-note.full { background: #e8f5e9; color: var(--green); border: 1px solid #a5d6a7; }
-  .receipt-note.mismatch { background: #fdecea; color: var(--rust); border: 1px solid #f5c6c2; }
-  .receipt-actions { display: flex; gap: 8px; }
-  .receipt-actions .btn-cancel { flex: 1; padding: 11px; }
-  .receipt-actions .btn-save { flex: 2; padding: 11px; }
-
-  /* API KEY BANNER */
-  .api-key-banner {
-    display: flex; align-items: center; gap: 10px;
-    background: #fff8e1; border: 1px solid #f6d860;
-    border-radius: 8px; padding: 10px 16px; margin-bottom: 20px;
-    font-size: 12px; color: #b7791f; font-family: 'Inter', sans-serif;
-  }
-  .api-key-banner input {
-    flex: 1; border: 1px solid #f6d860; border-radius: 6px; padding: 6px 10px;
-    font-size: 12px; font-family: 'Inter', sans-serif; background: white; color: var(--ink);
-    outline: none;
-  }
-  .api-key-banner input:focus { border-color: var(--blue); }
-  .api-key-banner .btn-set {
-    padding: 6px 14px; background: var(--blue); color: white;
-    border: none; border-radius: 6px; font-size: 11px; font-weight: 600;
-    font-family: 'Inter', sans-serif; cursor: pointer; white-space: nowrap;
-  }
-  .api-key-banner .btn-set:hover { background: #3558d0; }
-  .api-key-set { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--green); font-weight: 500; }
-  .api-key-set .btn-change { background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; text-decoration:underline; font-family:'Inter',sans-serif; }
   /* ACTION REQUIRED */
   .action-required {
     background: var(--white); border-radius: 10px;
@@ -496,7 +426,7 @@
     padding: 3px 8px; border-radius: 20px; flex-shrink: 0; white-space: nowrap;
   }
   .action-badge.overdue { background: #fdecea; color: var(--rust); }
-  .action-badge.due-soon { background: #fff3e0; color: var(--orange); }
+  .action-badge.due-soon { background: #fff3e0; color: var(--orange-text); }
   .action-info { flex: 1; min-width: 0; overflow: hidden; }
   .action-bill-name { font-size: 13px; font-weight: 600; color: var(--ink); }
   .action-tenant { font-size: 11px; color: var(--muted); margin-top: 2px; }
@@ -560,7 +490,7 @@
   .gen-bill-row input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; accent-color: var(--blue); }
   .gen-bill-info { flex: 1; }
   .gen-bill-label { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .gen-bill-skip-note { font-size: 11px; color: var(--orange); font-weight: 500; margin-top: 1px; }
+  .gen-bill-skip-note { font-size: 11px; color: var(--orange-text); font-weight: 500; margin-top: 1px; }
   .gen-bill-due { font-size: 11px; color: var(--muted); margin-top: 1px; }
   .gen-bill-amount { font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 600; color: var(--ink); }
   .gen-empty { text-align: center; padding: 32px 0; font-size: 13px; color: var(--muted); }
@@ -760,9 +690,9 @@
   }
 
   /* DUE DATE URGENCY CHIPS */
-  .pbill-due.urgent  { color: var(--rust);   font-weight: 700; }
-  .pbill-due.soon    { color: var(--orange);  font-weight: 600; }
-  .pbill-due.overdue { color: var(--rust);    font-weight: 700; }
+  .pbill-due.urgent  { color: var(--rust);        font-weight: 700; }
+  .pbill-due.soon    { color: var(--orange-text); font-weight: 600; }
+  .pbill-due.overdue { color: var(--rust);        font-weight: 700; }
 
   .due-chip {
     display: inline-flex; align-items: center; gap: 5px;
@@ -771,7 +701,7 @@
   }
   .due-chip.overdue { background: #fdecea; color: var(--rust); }
   .due-chip.today   { background: #fdecea; color: var(--rust); }
-  .due-chip.soon    { background: #fff3e0; color: var(--orange); }
+  .due-chip.soon    { background: #fff3e0; color: var(--orange-text); }
   .due-chip.normal  { background: #f1f5f9; color: var(--muted); }
 
   /* remark-pending-amount removed — now inline */
@@ -927,7 +857,7 @@
   }
   .payment-add-form .form-grid { gap: 8px; }
   .partial-balance {
-    font-size: 11px; font-weight: 600; color: var(--orange);
+    font-size: 11px; font-weight: 600; color: var(--orange-text);
     margin-top: 3px;
   }
   .partial-balance.settled { color: var(--green); }
@@ -1362,12 +1292,12 @@
     </div>
     <div id="admin-form">
       <div class="field">
-        <label>Email</label>
-        <input type="email" id="admin-email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')adminLogin()">
+        <label for="admin-email">Email</label>
+        <input type="email" id="admin-email" autocomplete="email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')adminLogin()">
       </div>
       <div class="field">
-        <label>Password</label>
-        <input type="password" id="admin-pw" placeholder="Enter password" onkeydown="if(event.key==='Enter')adminLogin()">
+        <label for="admin-pw">Password</label>
+        <input type="password" id="admin-pw" autocomplete="current-password" placeholder="Enter password" onkeydown="if(event.key==='Enter')adminLogin()">
       </div>
       <button class="btn-primary" onclick="adminLogin()">Enter Dashboard</button>
       <div style="text-align:center;margin-top:14px;">
@@ -1376,8 +1306,8 @@
     </div>
     <div id="tenant-form" style="display:none">
       <div class="field">
-        <label>Access Code</label>
-        <input type="text" id="tenant-code" placeholder="e.g. XKQR-A7BN" style="letter-spacing:0.1em;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')tenantLogin()">
+        <label for="tenant-code">Access Code</label>
+        <input type="text" id="tenant-code" autocomplete="one-time-code" placeholder="e.g. XKQR-A7BN" style="letter-spacing:0.1em;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')tenantLogin()">
       </div>
       <button class="btn-primary" onclick="tenantLogin()">View My Bills</button>
     </div>
@@ -1400,7 +1330,7 @@
 </div>
 
 <!-- MODAL -->
-<div class="modal-overlay" id="tenant-modal">
+<div class="modal-overlay" id="tenant-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal">
     <div class="modal-eyebrow" id="modal-eyebrow">New Tenant</div>
     <div class="modal-title" id="modal-title">Add a tenant</div>
@@ -1411,18 +1341,18 @@
     </div>
     <div class="modal-panel active" id="panel-info">
       <div class="form-grid">
-        <div class="field"><label>Full Name</label><input type="text" id="m-name" placeholder="e.g. Maria Santos"></div>
-        <div class="field"><label>Unit Number</label><input type="text" id="m-unit" placeholder="e.g. 301"></div>
+        <div class="field"><label for="m-name">Full Name</label><input type="text" id="m-name" placeholder="e.g. Maria Santos"></div>
+        <div class="field"><label for="m-unit">Unit Number</label><input type="text" id="m-unit" placeholder="e.g. 301"></div>
         <div class="field full">
-          <label>Access Code</label>
+          <label for="m-code">Access Code</label>
           <div class="code-row">
             <input type="text" id="m-code" placeholder="Auto-generated" style="letter-spacing:0.1em;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
             <button class="btn-gen" onclick="generateCode()">Generate</button>
           </div>
         </div>
-        <div class="field"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="text" id="m-phone" placeholder="e.g. 0917 123 4567"></div>
-        <div class="field"><label>Email <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="email" id="m-email" placeholder="e.g. tenant@email.com"></div>
-        <div class="field"><label>Move-in Date <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="date" id="m-movein"></div>
+        <div class="field"><label for="m-phone">Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="text" id="m-phone" placeholder="e.g. 0917 123 4567"></div>
+        <div class="field"><label for="m-email">Email <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="email" id="m-email" placeholder="e.g. tenant@email.com"></div>
+        <div class="field"><label for="m-movein">Move-in Date <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="date" id="m-movein"></div>
       </div>
       <div id="new-tenant-bills">
         <hr class="divider">
@@ -1459,7 +1389,7 @@
 </div>
 
 <!-- GENERATE BILLS MODAL -->
-<div id="genbills-modal" style="display:none;position:fixed;inset:0;background:rgba(17,17,17,0.5);backdrop-filter:blur(4px);z-index:2000;align-items:center;justify-content:center;">
+<div id="genbills-modal" role="dialog" aria-modal="true" aria-labelledby="genbills-title">
   <div class="genbills-box">
     <div class="genbills-head">
       <div class="genbills-eyebrow">Recurring Bills</div>
@@ -1467,7 +1397,7 @@
     </div>
     <div class="genbills-body">
       <div class="gen-month-picker">
-        <label>Month:</label>
+        <label for="gen-month-input">Month:</label>
         <input type="month" id="gen-month-input" onchange="refreshGenPreview()">
       </div>
       <div id="gen-preview-body"></div>
@@ -1482,14 +1412,14 @@
 
 
 <!-- STATEMENT MODAL -->
-<div id="stmt-modal">
+<div id="stmt-modal" role="dialog" aria-modal="true" aria-labelledby="stmt-title">
   <div class="stmt-box">
     <div class="stmt-eyebrow">Statement</div>
     <div class="stmt-title" id="stmt-title">Generate Statement</div>
     <div class="stmt-sub" id="stmt-sub">Select a date range to print or save as PDF.</div>
     <div class="stmt-range">
-      <div class="field"><label>From</label><input type="month" id="stmt-from"></div>
-      <div class="field"><label>To</label><input type="month" id="stmt-to"></div>
+      <div class="field"><label for="stmt-from">From</label><input type="month" id="stmt-from"></div>
+      <div class="field"><label for="stmt-to">To</label><input type="month" id="stmt-to"></div>
     </div>
     <div class="stmt-actions">
       <button class="btn-cancel" onclick="closeStmtModal()">Cancel</button>
@@ -1500,12 +1430,12 @@
 </div>
 
 <!-- PAID DATE MODAL -->
-<div id="paiddate-modal">
+<div id="paiddate-modal" role="dialog" aria-modal="true" aria-labelledby="paiddate-bill-name">
   <div class="paiddate-box">
     <div class="paiddate-eyebrow">Confirm Payment</div>
     <div class="paiddate-title" id="paiddate-bill-name">Bill</div>
     <div class="field" style="margin-top:4px;">
-      <label>Date Paid</label>
+      <label for="paiddate-input">Date Paid</label>
       <input type="date" id="paiddate-input">
     </div>
     <div class="paiddate-actions">
@@ -1516,11 +1446,12 @@
 </div>
 
 <!-- PAYMENT INSTRUCTIONS EDIT MODAL -->
-<div id="payinst-modal">
+<div id="payinst-modal" role="dialog" aria-modal="true" aria-labelledby="payinst-modal-title">
   <div class="payinst-box">
     <div class="payinst-eyebrow">Payment Instructions</div>
-    <div class="payinst-title">Edit Payment Instructions</div>
+    <div class="payinst-title" id="payinst-modal-title">Edit Payment Instructions</div>
     <div class="payinst-sub">These instructions will be shown to tenants on their portal so they know how to pay.</div>
+    <label for="payinst-textarea" style="position:absolute;left:-9999px;">Payment instructions</label>
     <textarea id="payinst-textarea" placeholder="e.g. GCash: 0917 123 4567&#10;BDO: 1234-5678-9012&#10;Cash: Hand to admin at Unit 1"></textarea>
     <div id="payinst-error" style="display:none;color:var(--rust);font-size:12px;margin-top:8px;font-weight:500;"></div>
     <div class="payinst-actions">
@@ -1530,23 +1461,8 @@
   </div>
 </div>
 
-<!-- RECEIPT CONFIRM MODAL (dormant — UI hidden) -->
-<div id="receipt-modal">
-  <div class="receipt-box">
-    <div class="receipt-eyebrow">Receipt Scan</div>
-    <div class="receipt-title" id="receipt-modal-title">Confirm Payment</div>
-    <img id="receipt-img-preview" class="receipt-preview" style="display:none" alt="Receipt preview">
-    <div class="receipt-extracted" id="receipt-extracted"></div>
-    <div class="receipt-note" id="receipt-note"></div>
-    <div class="receipt-actions">
-      <button class="btn-cancel" onclick="closeReceiptModal()">Cancel</button>
-      <button class="btn-save" onclick="applyReceipt()">Apply Payment</button>
-    </div>
-  </div>
-</div>
-<input type="file" id="receipt-file-input" accept="image/*" style="display:none" onchange="handleReceiptFile(this)">
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
 <script>
 // ─────────────────────────────────────────────
 // PAYMENT LOG MANAGEMENT (F-08)
@@ -1577,7 +1493,7 @@ async function savePaymentEntry(bi) {
   if(!amt||amt<=0){ showToast('Please enter a valid amount.',false); return; }
   if(!date){ showToast('Please select a date.',false); return; }
   const t = tenants.find(t=>t.id===editingId);
-  const billsCopy = JSON.parse(JSON.stringify(t.bills));
+  const billsCopy = structuredClone(t.bills);
   if(!billsCopy[bi].payments) billsCopy[bi].payments = [];
   billsCopy[bi].payments.push({amount:amt, date, note});
   try {
@@ -1593,7 +1509,7 @@ async function savePaymentEntry(bi) {
 async function deletePaymentEntry(bi, pi) {
   if(!confirm('Remove this payment entry?')) return;
   const t = tenants.find(t=>t.id===editingId);
-  const billsCopy = JSON.parse(JSON.stringify(t.bills));
+  const billsCopy = structuredClone(t.bills);
   billsCopy[bi].payments.splice(pi,1);
   try {
     await dbUpdate(t.id,{bills:billsCopy});
@@ -1651,21 +1567,31 @@ function printStatement(fullHistory) {
     rangeLabel = fmtM(fromYM)+' – '+fmtM(toYM);
   }
 
-  const totalDue = bills.filter(b=>b.status!=='paid').reduce((s,b)=>s+Math.max(0,billRemaining(b)),0);
-  const rows = bills.map(b=>
-    '<tr><td>'+esc(b.label)+'</td><td>'+(b.due?formatDate(b.due):'-')+'</td>'+
-    '<td style="text-align:right;">&#8369;'+Number(b.amount).toLocaleString()+'</td>'+
-    '<td style="text-transform:capitalize;color:'+(b.status==='paid'?'#27ae60':b.status==='overdue'?'#e67e22':'#c0392b')+'">'+b.status+'</td>'+
-    '<td>'+(b.paidDate?formatDate(b.paidDate):'-')+'</td>'+
-    '<td>'+esc(b.remark||'')+'</td></tr>'
-  ).join('');
+  // True outstanding balance is over ALL bills, not just the date-ranged subset.
+  const totalDueAllTime = t.bills.filter(b=>b.status!=='paid').reduce((s,b)=>s+Math.max(0,billRemaining(b)),0);
+  const totalDueInRange = bills.filter(b=>b.status!=='paid').reduce((s,b)=>s+Math.max(0,billRemaining(b)),0);
+  const isRanged = !fullHistory && fromYM && toYM;
+  // Use unified due-status so "Upcoming"/"Due Soon"/"Overdue" appear consistently with the dashboard.
+  const dueStatusLabels = { paid:'Paid', overdue:'Overdue', 'due-today':'Due Today', 'due-soon':'Due Soon', upcoming:'Upcoming', 'no-date':'Unscheduled' };
+  const dueStatusColors = { paid:'#27ae60', overdue:'#c0392b', 'due-today':'#c0392b', 'due-soon':'#e67e22', upcoming:'#666', 'no-date':'#666' };
+  const rows = bills.map(b=>{
+    const ds = getDueStatus(b);
+    return '<tr><td>'+esc(b.label)+'</td><td>'+(b.due?formatDate(b.due):'-')+'</td>'+
+      '<td style="text-align:right;">&#8369;'+Number(b.amount).toLocaleString()+'</td>'+
+      '<td style="color:'+(dueStatusColors[ds]||'#666')+'">'+(dueStatusLabels[ds]||ds)+'</td>'+
+      '<td>'+(b.paidDate?formatDate(b.paidDate):'-')+'</td>'+
+      '<td>'+esc(b.remark||'')+'</td></tr>';
+  }).join('');
 
   const css = 'body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:800px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}.sub{color:#666;font-size:13px;margin-bottom:24px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f5f9;padding:8px 10px;text-align:left;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#666}td{padding:8px 10px;border-bottom:1px solid #e8e8ed}.total{text-align:right;margin-top:16px;font-size:16px;font-weight:700}@media print{body{padding:0}}';
   const html = '<!DOCTYPE html><html><head><title>Statement - '+esc(t.name)+'</title><style>'+css+'</style></head><body>'+
     '<h1>'+esc(t.name)+'</h1>'+
     '<div class="sub">Unit '+esc(t.unit)+' &nbsp;&middot;&nbsp; '+rangeLabel+' &nbsp;&middot;&nbsp; Generated '+new Date().toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'})+'</div>'+
     '<table><thead><tr><th>Bill</th><th>Due Date</th><th>Amount</th><th>Status</th><th>Paid Date</th><th>Remarks</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-    '<div class="total">Balance Outstanding: &#8369;'+totalDue.toLocaleString()+'</div>'+
+    (isRanged && totalDueInRange !== totalDueAllTime
+      ? '<div class="total">Balance for this period: &#8369;'+totalDueInRange.toLocaleString()+'</div>'+
+        '<div class="total" style="font-size:13px;color:#666;font-weight:500;">Total balance outstanding (all time): &#8369;'+totalDueAllTime.toLocaleString()+'</div>'
+      : '<div class="total">Balance Outstanding: &#8369;'+totalDueAllTime.toLocaleString()+'</div>')+
     '</body></html>';
 
   try {
@@ -1709,191 +1635,6 @@ function expandAdminPaid(tid) {
 }
 
 
-// ── RECEIPT SCANNING / MAIN APP ──
-
-// ── RECEIPT SCANNING ──
-let _anthropicKey = '';
-let _pendingReceipt = null; // {tid, bi, amount, paidDate, note, type}
-
-function renderApiKeyBanner(){
-  if(_anthropicKey) return `<div class="api-key-banner"><div class="api-key-set">&#128247; Receipt scanning ready <button class="btn-change" onclick="resetApiKey()">Change key</button></div></div>`;
-  return `<div class="api-key-banner">
-    <span style="white-space:nowrap;font-weight:600;">&#128247; AI Receipt Scan:</span>
-    <input type="password" id="api-key-input" placeholder="Enter your Anthropic API key (sk-ant-…)" autocomplete="off">
-    <button class="btn-set" onclick="setApiKey()">Save</button>
-  </div>`;
-}
-
-function setApiKey(){
-  const val = document.getElementById('api-key-input')?.value?.trim();
-  if(!val || !val.startsWith('sk-')){ showToast('Please enter a valid Anthropic API key.', false); return; }
-  _anthropicKey = val;
-  document.getElementById('api-key-banner-wrap').innerHTML = renderApiKeyBanner();
-  showToast('API key saved for this session ✓');
-}
-
-function resetApiKey(){
-  _anthropicKey = '';
-  document.getElementById('api-key-banner-wrap').innerHTML = renderApiKeyBanner();
-}
-
-function triggerReceiptUpload(billIndex){
-  if(!_anthropicKey){ showToast('Enter your Anthropic API key first to use receipt scanning.', false); return; }
-  const input = document.getElementById('receipt-file-input');
-  input.dataset.billIndex = billIndex;
-  input.value = '';
-  input.click();
-}
-
-async function handleReceiptFile(input){
-  const file = input.files[0]; if(!file) return;
-  const bi = parseInt(input.dataset.billIndex);
-  const t = tenants.find(t=>t.id===editingId); if(!t) return;
-  const bill = t.bills[bi];
-
-  // Show scanning indicator
-  const scanEl = document.getElementById('receipt-scanning-'+bi);
-  if(scanEl) scanEl.style.display='flex';
-
-  try {
-    // Convert to base64
-    const base64 = await fileToBase64(file);
-    const mediaType = file.type || 'image/jpeg';
-
-    // Call Claude vision API
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': _anthropicKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 300,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: base64 }
-            },
-            {
-              type: 'text',
-              text: `This is a payment receipt. Extract the following and respond ONLY with valid JSON, no other text:
-{
-  "amount": <total amount paid as a number, no currency symbols>,
-  "date": "<date paid in YYYY-MM-DD format, or null if not found>",
-  "confidence": "<high|medium|low>",
-  "notes": "<any relevant notes like partial payment indicators, or empty string>"
-}
-If you cannot determine the amount, set amount to null.`
-            }
-          ]
-        }]
-      })
-    });
-
-    if(scanEl) scanEl.style.display='none';
-
-    if(!response.ok){
-      const err = await response.json();
-      throw new Error(err.error?.message || 'API error');
-    }
-
-    const data = await response.json();
-    const raw = data.content[0].text.trim();
-    let extracted;
-    try { extracted = JSON.parse(raw); }
-    catch(e) { throw new Error('Could not parse AI response. Try a clearer photo.'); }
-    if(!extracted||typeof extracted!=='object') throw new Error('Could not parse AI response. Try a clearer photo.');
-
-    if(!extracted.amount){ throw new Error('Could not read an amount from the receipt. Try a clearer photo.'); }
-
-    // Compare against bill
-    const billAmt = Number(bill.amount);
-    const paidAmt = Number(extracted.amount);
-    const diff = billAmt - paidAmt;
-    const paidDate = extracted.date || new Date().toISOString().slice(0,10);
-
-    let noteType, noteMsg;
-    if(Math.abs(diff) < 0.01){
-      noteType = 'full';
-      noteMsg = `&#10003; Full payment of ₱${paidAmt.toLocaleString()} detected. Bill will be marked as <strong>Paid</strong>.`;
-    } else if(diff > 0){
-      noteType = 'partial';
-      noteMsg = `Partial payment of ₱${paidAmt.toLocaleString()} detected. Remaining balance: <strong>₱${diff.toLocaleString()}</strong>. Bill will stay <strong>Unpaid</strong> with a remark.`;
-    } else {
-      noteType = 'mismatch';
-      noteMsg = `Receipt amount (₱${paidAmt.toLocaleString()}) exceeds bill total (₱${billAmt.toLocaleString()}). Possible overpayment or wrong receipt — please verify. Applying will mark as <strong>Paid</strong>.`;
-    }
-
-    _pendingReceipt = { tid: t.id, bi, paidAmt, paidDate, noteType, diff, imgBase64: base64, mediaType };
-
-    // Show confirmation modal
-    document.getElementById('receipt-modal-title').textContent = bill.label;
-    const imgEl = document.getElementById('receipt-img-preview');
-    imgEl.src = 'data:'+mediaType+';base64,'+base64;
-    imgEl.style.display = 'block';
-    document.getElementById('receipt-extracted').innerHTML = `
-      <div class="receipt-row"><span class="receipt-row-label">Amount on Receipt</span><span class="receipt-row-value">&#8369;${paidAmt.toLocaleString()}</span></div>
-      <div class="receipt-row"><span class="receipt-row-label">Bill Total</span><span class="receipt-row-value">&#8369;${billAmt.toLocaleString()}</span></div>
-      <div class="receipt-row"><span class="receipt-row-label">Date Paid</span><span class="receipt-row-value">${formatDate(paidDate)}</span></div>
-      ${extracted.confidence?`<div class="receipt-row"><span class="receipt-row-label">Confidence</span><span class="receipt-row-value" style="font-size:12px;font-family:Inter,sans-serif;color:var(--muted)">${esc(String(extracted.confidence))}</span></div>`:''}
-    `;
-    const noteEl = document.getElementById('receipt-note');
-    noteEl.className = 'receipt-note '+noteType;
-    noteEl.innerHTML = noteMsg;
-    document.getElementById('receipt-modal').classList.add('open');
-
-  } catch(e) {
-    if(scanEl) scanEl.style.display='none';
-    showToast('Scan failed: '+e.message, false);
-  }
-}
-
-function closeReceiptModal(){
-  document.getElementById('receipt-modal').classList.remove('open');
-  _pendingReceipt = null;
-}
-
-async function applyReceipt(){
-  if(!_pendingReceipt) return;
-  const {tid, bi, paidAmt, paidDate, noteType, diff} = _pendingReceipt;
-  const t = tenants.find(t=>t.id===tid);
-  const billsCopy = JSON.parse(JSON.stringify(t.bills));
-
-  if(noteType === 'partial'){
-    billsCopy[bi].remark = `Partial payment of ₱${paidAmt.toLocaleString()} received on ${formatDate(paidDate)}. Remaining: ₱${diff.toLocaleString()}`;
-    billsCopy[bi].status = 'unpaid';
-    billsCopy[bi].paidDate = '';
-  } else {
-    billsCopy[bi].status = 'paid';
-    billsCopy[bi].paidDate = paidDate;
-    if(noteType === 'mismatch') billsCopy[bi].remark = `Paid ₱${paidAmt.toLocaleString()} (receipt amount, reviewed by admin)`;
-  }
-
-  closeReceiptModal();
-  try {
-    await dbUpdate(t.id, {bills: billsCopy});
-    t.bills = billsCopy;
-    tenants = tenants.map(x=>x.id===t.id?t:x);
-    showToast(noteType==='partial' ? 'Partial payment recorded.' : 'Payment applied ✓');
-    renderBillListItems();
-    renderAdmin();
-  } catch(e){ showToast('Save failed: '+e.message, false); }
-}
-
-function fileToBase64(file){
-  return new Promise((res,rej)=>{
-    const r = new FileReader();
-    r.onload = ()=> { const parts=r.result.split(','); res(parts.length>1?parts[1]:''); };
-    r.onerror = ()=> rej(new Error('Could not read file'));
-    r.readAsDataURL(file);
-  });
-}
-
 // ── SUPABASE CONFIG ──
 const SB_URL = 'https://bxzfqjspoyvwosmpgeof.supabase.co';
 const SB_KEY = 'sb_publishable_FgSrHN3LoB9XQ4ZQHCeoQQ_AXg54YkP';
@@ -1933,13 +1674,11 @@ async function dbGetSetting(key) {
   } catch { return ''; }
 }
 async function dbSetSetting(key, value) {
-  try {
-    await sbFetch('settings', {
-      method: 'POST',
-      body: JSON.stringify({key, value}),
-      headers_extra: { 'Prefer': 'resolution=merge-duplicates,return=representation' }
-    });
-  } catch(e) { console.error('dbSetSetting failed:', e.message); }
+  await sbFetch('settings', {
+    method: 'POST',
+    body: JSON.stringify({key, value}),
+    headers_extra: { 'Prefer': 'resolution=merge-duplicates,return=representation' }
+  });
 }
 let currentUser = null;
 let tenants = [];
@@ -2053,7 +1792,7 @@ async function checkAndSyncOverdue() {
   const today = new Date(); today.setHours(0,0,0,0);
   const updates = [];
   tenants.forEach(t => {
-    const billsCopy = JSON.parse(JSON.stringify(t.bills));
+    const billsCopy = structuredClone(t.bills);
     let changed = false;
     billsCopy.forEach(b => {
       if (b.status === 'unpaid' && b.due) {
@@ -2094,13 +1833,29 @@ async function showApp() {
 }
 async function logout() {
   if(currentUser==='admin') await _sbClient.auth.signOut();
-  currentUser=null;
+  // Reset every piece of session state so a subsequent login starts clean.
+  currentUser = null;
+  tenants = [];
+  editingId = null;
+  paymentInstructions = '';
+  filterTenantId = '';
+  filterMonth    = '';
+  filterStatuses = [];
+  sortOrder      = 'unit-asc';
+  viewMode       = 'card';
+  tableSortCol   = 'due';
+  tableSortDir   = 'asc';
+  tableRowLimit  = 50;
+  portalMonth    = 'current';
+  billForms      = [];
+  _showAllMonths = false;
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('app').style.display='none';
   document.getElementById('admin-email').value='';
   document.getElementById('admin-pw').value='';
   document.getElementById('tenant-code').value='';
   document.getElementById('login-error').textContent='';
+  document.getElementById('main-content').innerHTML='';
 }
 
 function renderActionRequired() {
@@ -2153,7 +1908,6 @@ function renderAdmin() {
       <div class="summary-stat"><div class="stat-label">Unpaid Bills</div><div class="stat-value">${unpaid}</div></div>
       <div class="summary-stat"><div class="stat-label">Balance Outstanding</div><div class="stat-value blue">&#8369;${totalDue.toLocaleString()}</div></div>
     </div>
-    <div id="api-key-banner-wrap" style="display:none"></div>
     <div class="pay-inst-card">
       <div class="pay-inst-head">
         <div class="pay-inst-label">&#128176; Payment Instructions</div>
@@ -2306,8 +2060,10 @@ function renderRows() {
   // tenants.find() on the original array, and t.bills.indexOf(b) resolves the correct
   // index against the full unfiltered bill list. Do not use these copies for mutations.
   if (filterMonth) {
+    // A bill is in-month if its due date matches; bills with no due date are always
+    // included so they don't silently disappear from view.
     filtered = filtered.map(t => {
-      const inMonth = b => b.due && b.due.startsWith(filterMonth);
+      const inMonth = b => (b.due && b.due.startsWith(filterMonth)) || !b.due;
       const bills = t.bills.filter(inMonth);
       return bills.length ? {...t, bills} : null;
     }).filter(Boolean);
@@ -2352,13 +2108,13 @@ function renderRows() {
     const paidBills   = t.bills.filter(b=>b.status==='paid');
     const due = activeBills.reduce((s,b)=>s+Math.max(0,billRemaining(b)),0);
     const total = due?'&#8369;'+due.toLocaleString():`<span style="color:var(--green);font-size:13px;font-family:Inter,sans-serif">Settled</span>`;
-    const actions = `<div class="row-actions"><button class="btn-statement" style="padding:4px 10px;font-size:10px;" onclick="openStmtModalById('${t.id}')" aria-label="Statement">Stmt</button><button class="btn-icon" onclick="openEditModal('${t.id}')" aria-label="Edit">&#9998;</button><button class="btn-icon del" onclick="deleteTenant('${t.id}')" aria-label="Delete">&#10005;</button></div>`;
+    const actions = `<div class="row-actions"><button class="btn-statement" style="padding:4px 10px;font-size:10px;" onclick="openStmtModalById('${t.id}')" aria-label="Generate statement">Statement</button><button class="btn-icon" onclick="openEditModal('${t.id}')" aria-label="Edit">&#9998;</button><button class="btn-icon del" onclick="deleteTenant('${t.id}')" aria-label="Delete">&#10005;</button></div>`;
 
     // Active bill badges sorted by urgency (F-12: uses getDueStatus)
     const sortedActive = activeBills.slice().sort((a,b)=>getDueUrgencyScore(a)-getDueUrgencyScore(b));
     const activeBadges = sortedActive.length
       ? sortedActive.map(b=>{ const bi=t.bills.indexOf(b); const hasRemark=b.remark&&b.remark.trim(); return `<button class="mini-status status-${b.status}" onclick="toggleStatus('${t.id}',${bi})"${hasRemark?' title="'+esc(b.remark)+'"':''}>${esc(b.label)}${hasRemark?' <span style="opacity:0.5;font-size:9px;">✎</span>':''}</button>`; }).join('')
-      : `<span style="font-size:12px;color:var(--green);font-weight:500">All settled</span>`;
+      : `<span style="font-size:12px;color:var(--green);font-weight:500">Settled</span>`;
 
     // Paid archive rows — sorted newest first, limited to 3
     const paidSorted = paidBills.slice().sort((a,b)=>(b.paidDate||'').localeCompare(a.paidDate||''));
@@ -2418,10 +2174,12 @@ function renderRows() {
 
 // ── TABLE DATABASE VIEW ──
 function setViewMode(mode) { viewMode = mode; tableRowLimit = 50; renderAdmin(); }
+function loadMoreTableRows() { tableRowLimit += 50; renderRows(); }
 
 function sortTable(col) {
   if (tableSortCol === col) { tableSortDir = tableSortDir === 'asc' ? 'desc' : 'asc'; }
   else { tableSortCol = col; tableSortDir = 'asc'; }
+  tableRowLimit = 50; // reset cap so a fresh sort always starts at the top
   renderRows();
 }
 
@@ -2488,7 +2246,7 @@ function renderTableView(c, filtered) {
   }).join('');
 
   const showMoreBtn = totalRows > tableRowLimit
-    ? '<div style="text-align:center;padding:12px;"><button class="btn-generate" onclick="tableRowLimit+=50;renderRows()">Show more (' + (totalRows - tableRowLimit) + ' remaining)</button></div>'
+    ? '<div style="text-align:center;padding:12px;"><button class="btn-generate" onclick="loadMoreTableRows()">Show more (' + (totalRows - tableRowLimit) + ' remaining)</button></div>'
     : '';
   const countNote = '<div style="font-size:11px;color:var(--muted);padding:8px 12px;">Showing ' + capped.length + ' of ' + totalRows + ' bills</div>';
 
@@ -2519,7 +2277,7 @@ async function toggleStatus(tid,bi){
   if(next==='paid'){
     // Open date picker modal
     _pendingPaid={tid,bi};
-    document.getElementById('paiddate-bill-name').textContent=t.bills[bi].label;
+    document.getElementById('paiddate-bill-name').textContent = t.bills[bi].label + ' — ' + t.name;
     document.getElementById('paiddate-input').value=new Date().toISOString().slice(0,10);
     document.getElementById('paiddate-modal').classList.add('open');
   } else {
@@ -2668,15 +2426,26 @@ function billListItemHtml(b, i, extraClass) {
       ${p.note?`<span class="payment-entry-note">${esc(p.note)}</span>`:'<span class="payment-entry-note"></span>'}
       ${extraClass!=='paid-item'?`<button class="payment-entry-del" onclick="deletePaymentEntry(${i},${pi})" title="Remove" aria-label="Delete">&#10005;</button>`:''}
     </div>`).join('');
+  // Use unified due-status so "Upcoming" and "Due Soon" appear instead of red "Unpaid".
+  const ds = getDueStatus(b);
+  const statusMeta = {
+    paid:      {label: 'Paid',      color: 'var(--green)'},
+    overdue:   {label: 'Overdue',   color: 'var(--rust)'},
+    'due-today':{label:'Due Today', color: 'var(--rust)'},
+    'due-soon':{label:'Due Soon',   color: 'var(--orange)'},
+    upcoming:  {label: 'Upcoming',  color: 'var(--muted)'},
+    'no-date': {label: 'Unscheduled', color: 'var(--muted)'}
+  }[ds] || {label: 'Unpaid', color: 'var(--rust)'};
+  const statusHtml = b.status==='paid' && b.paidDate
+    ? `<span style="color:var(--green);font-weight:600;">Paid ${formatDate(b.paidDate)}</span>`
+    : `<span style="color:${statusMeta.color};font-weight:600;">${statusMeta.label}</span>`;
   return `<div class="bill-list-item ${extraClass||''}">
     <div class="bill-list-info" style="flex:1">
       <div class="bill-list-label">${esc(b.label)}</div>
       <div class="bill-list-meta">
         &#8369;${Number(b.amount).toLocaleString()}
         ${b.due?' &nbsp;·&nbsp; Due '+formatDate(b.due):''}
-        ${b.status==='paid'&&b.paidDate?' &nbsp;·&nbsp; <span style="color:var(--green);font-weight:600;">Paid '+formatDate(b.paidDate)+'</span>'
-          :b.status==='overdue'?' &nbsp;·&nbsp; <span style="color:var(--orange);font-weight:600;">Overdue</span>'
-          :' &nbsp;·&nbsp; <span style="color:var(--rust);font-weight:600;">Unpaid</span>'}
+        &nbsp;·&nbsp; ${statusHtml}
       </div>
       ${hasPartial?`<div class="partial-balance${remaining<=0?' settled':''}">&#8369;${paid.toLocaleString()} received &nbsp;·&nbsp; &#8369;${Math.max(0,remaining).toLocaleString()} remaining</div>`:''}
       ${(b.payments&&b.payments.length)?`<div class="payments-log">${paymentsHtml}</div>`:''}
@@ -2747,8 +2516,10 @@ function editBillInline(i){
 
 async function saveBillEdit(i){
   const t=tenants.find(t=>t.id===editingId); if(!t||!t.bills[i]) return;
-  const _amt=Number(document.getElementById('bi-amount-'+i).value);
-  if(_amt===0){ showToast('Note: amount is set to ₱0.',true); }
+  const _amt = normalizeAmount(document.getElementById('bi-amount-'+i).value);
+  const _raw = Number(String(document.getElementById('bi-amount-'+i).value).replace(/,/g,''));
+  if(_raw < 0){ showToast('Amount cannot be negative.', false); return; }
+  if(_amt===0 && !confirm('Amount is ₱0. Save anyway?')) return;
   const newStatus=document.getElementById('bi-status-'+i).value;
   const pdInput=document.getElementById('bi-paidDate-'+i);
   const paidDate=newStatus==='paid'?(pdInput?pdInput.value||new Date().toISOString().slice(0,10):new Date().toISOString().slice(0,10)):'';
@@ -2802,7 +2573,10 @@ function cancelNewBill(){
 
 async function saveNewBill(){
   const label=document.getElementById('nb-label').value.trim(); if(!label){showToast('Please enter a bill description.',false);return;}
-  const _nbAmt=Number(document.getElementById('nb-amount').value); if(_nbAmt===0){ showToast('Note: amount is set to ₱0.',true); }
+  const _rawNb = Number(String(document.getElementById('nb-amount').value).replace(/,/g,''));
+  if(_rawNb < 0){ showToast('Amount cannot be negative.', false); return; }
+  const _nbAmt = normalizeAmount(document.getElementById('nb-amount').value);
+  if(_nbAmt===0 && !confirm('Amount is ₱0. Add this bill anyway?')) return;
   const status=document.getElementById('nb-status').value;
   const paidDate=status==='paid'?(document.getElementById('nb-paidDate').value||new Date().toISOString().slice(0,10)):'';
   const bill={label,amount:normalizeAmount(document.getElementById('nb-amount').value),due:document.getElementById('nb-due').value,status,remark:document.getElementById('nb-remark').value.trim(),scanLink:(function(v){return /^https:\/\//i.test(v)?v:'';})(document.getElementById('nb-scanLink').value.trim()),paidDate,payments:[]};
@@ -2851,25 +2625,36 @@ async function saveTenant(){
     bills = existing ? existing.bills : [];
   } else {
     bills = billForms.filter(b=>b.label).map(b=>({...b, amount:normalizeAmount(b.amount), payments:b.payments||[]}));
-    const badBill = bills.find(b=>Number(b.amount)===0);
-    if(badBill){ showToast('Note: amount for "' + badBill.label + '" is ₱0.', true); }
+    const negative = billForms.find(b=>b.label && Number(String(b.amount||'').replace(/,/g,'')) < 0);
+    if(negative){ showToast('Amount for "' + negative.label + '" cannot be negative.', false); return; }
+    const dropped = billForms.filter(b=>!b.label && (b.amount || b.due));
+    if(dropped.length){ showToast(dropped.length + ' bill(s) dropped — missing description.', false); }
+    const zeroBill = bills.find(b=>Number(b.amount)===0);
+    if(zeroBill && !confirm('Bill "' + zeroBill.label + '" has amount ₱0. Save anyway?')) return;
   }
   const existingTemplates = savingId ? (tenants.find(t=>t.id===savingId)?.templates||[]) : [];
-  closeModal();
   setLoading(true, savingId?'Saving changes…':'Adding tenant…');
   try {
     if(savingId){
       await dbUpdate(savingId,{name,unit,code,phone,email,move_in_date,bills,templates:existingTemplates});
       tenants=tenants.map(t=>t.id===savingId?{...t,name,unit,code,phone,email,move_in_date,bills,templates:existingTemplates}:t);
+      setLoading(false);
+      closeModal();
       showToast('Changes saved.');
     } else {
       const rec={id:uid(),name,unit,code,phone,email,move_in_date,bills,templates:[]};
       await dbInsert(rec);
       tenants.push(rec);
+      setLoading(false);
+      closeModal();
       showToast('Tenant added.');
     }
-  } catch(e){ showToast('Error: '+e.message, false); }
-  setLoading(false); renderAdmin();
+    renderAdmin();
+  } catch(e){
+    setLoading(false);
+    showToast('Error: '+e.message, false);
+    // Modal stays open so the admin can correct and retry without re-typing.
+  }
 }
 function generateCode(){ document.getElementById('m-code').value=randCode(); }
 
@@ -2921,7 +2706,7 @@ function renderTenant(){
   // Balance summary calculations
   const now = new Date(); const curYM = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   const thisMonthBills = allActiveBills.filter(b=>b.due&&b.due.startsWith(curYM));
-  const overdueBills   = allActiveBills.filter(b=>b.status==='overdue'||(b.due&&new Date(b.due+'T00:00:00')<new Date(new Date().setHours(0,0,0,0))));
+  const overdueBills   = allActiveBills.filter(b=>getDueStatus(b)==='overdue');
   const thisMonthDue   = thisMonthBills.reduce((s,b)=>s+Math.max(0,billRemaining(b)),0);
   const overdueDue     = overdueBills.reduce((s,b)=>s+Math.max(0,billRemaining(b)),0);
   const totalDue       = allActiveBills.reduce((s,b)=>s+Math.max(0,billRemaining(b)),0);
@@ -2979,7 +2764,7 @@ function renderTenant(){
     const partialHtml = hasPartialPayments
       ? `<span style="font-size:11px;font-weight:600;display:inline-flex;gap:10px;flex-wrap:wrap;margin-top:3px;">` +
         `<span style="color:var(--green);">&#8369;${_paid.toLocaleString()} paid</span>` +
-        (_rem > 0 ? `<span style="color:var(--orange);">&#8369;${_rem.toLocaleString()} still due</span>` : `<span style="color:var(--green);">Fully settled ✓</span>`) +
+        (_rem > 0 ? `<span style="color:var(--orange);">&#8369;${_rem.toLocaleString()} still due</span>` : `<span style="color:var(--green);">Settled</span>`) +
         `</span>`
       : '';
     const paymentEntriesHtml = (b.payments&&b.payments.length&&b.status!=='paid')
@@ -3018,15 +2803,15 @@ function renderTenant(){
       <div class="portal-balance-strip">
         <div class="portal-bal-stat">
           <div class="portal-bal-label">This Month</div>
-          <div class="portal-bal-value ${thisMonthDue===0?'clear':''}">${thisMonthDue?'&#8369;'+thisMonthDue.toLocaleString():'Settled ✓'}</div>
+          <div class="portal-bal-value ${thisMonthDue===0?'clear':''}">${thisMonthDue?'&#8369;'+thisMonthDue.toLocaleString():'Settled'}</div>
         </div>
         <div class="portal-bal-stat">
           <div class="portal-bal-label">Overdue</div>
-          <div class="portal-bal-value ${overdueDue>0?'overdue':'clear'}">${overdueDue?'&#8369;'+overdueDue.toLocaleString():'None ✓'}</div>
+          <div class="portal-bal-value ${overdueDue>0?'overdue':'clear'}">${overdueDue?'&#8369;'+overdueDue.toLocaleString():'None'}</div>
         </div>
         <div class="portal-bal-stat">
           <div class="portal-bal-label">Total Outstanding</div>
-          <div class="portal-bal-value ${totalDue===0?'clear':''}">${totalDue?'&#8369;'+totalDue.toLocaleString():'Fully paid ✓'}</div>
+          <div class="portal-bal-value ${totalDue===0?'clear':''}">${totalDue?'&#8369;'+totalDue.toLocaleString():'Settled'}</div>
         </div>
       </div>
       <div class="bills-card">
@@ -3042,7 +2827,7 @@ function renderTenant(){
           : `<div class="empty-state" style="padding:32px 24px"><div class="icon" style="font-size:24px;margin-bottom:8px">&#10003;</div><p>${emptyMsg}</p></div>`}
         <div class="bills-footer">
           <div class="footer-label">${footerLabel}</div>
-          <div class="footer-total">${due?'&#8369;'+due.toLocaleString():'Settled ✓'}</div>
+          <div class="footer-total">${due?'&#8369;'+due.toLocaleString():'Settled'}</div>
 
         </div>
       </div>
@@ -3070,13 +2855,20 @@ function uid() {
   return Array.from(arr, b=>b.toString(16).padStart(2,'0')).join('');
 }
 function normalizeAmount(val) {
-  const n = Number(val);
-  return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+  // Accept "1,234.50" plus plain numbers; reject negatives.
+  if(val == null) return 0;
+  const cleaned = String(val).replace(/,/g,'').trim();
+  const n = Number(cleaned);
+  if(isNaN(n) || n < 0) return 0;
+  return Math.round(n * 100) / 100;
 }
 
 function randCode(){
   const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({length:4},()=>c[Math.random()*c.length|0]).join('')+'-'+Array.from({length:4},()=>c[Math.random()*c.length|0]).join('');
+  const buf = new Uint8Array(8);
+  crypto.getRandomValues(buf);
+  const pick = b => c[b % c.length];
+  return Array.from(buf.slice(0,4), pick).join('') + '-' + Array.from(buf.slice(4), pick).join('');
 }
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function formatDate(d) {
@@ -3385,18 +3177,18 @@ function refreshGenPreview() {
 
 async function confirmGenerateBills() {
   const modal = document.getElementById('genbills-modal');
-  const {groups, yr, mo} = modal._genData || {};
+  const {groups} = modal._genData || {};
   if(!groups) return;
 
-  let anyGenerated = false;
-  const updates = [];
+  // Build candidate bill arrays WITHOUT mutating live tenant objects yet.
+  const pending = []; // [{tenant, newBills}]
   groups.forEach((g, gi) => {
-    let changed = false;
+    const additions = [];
     g.rows.forEach((r, ri) => {
       if(r.alreadyExists) return;
       const cb = document.getElementById(`gen-cb-${gi}-${ri}`);
       if(!cb || !cb.checked) return;
-      g.t.bills.push({
+      additions.push({
         label:    r.tmpl.label,
         amount:   r.tmpl.pendingAmount ? 0 : normalizeAmount(r.tmpl.amount),
         due:      r.dueDate,
@@ -3406,18 +3198,17 @@ async function confirmGenerateBills() {
         paidDate: '',
         payments: []
       });
-      changed = true;
-      anyGenerated = true;
     });
-    if(changed) updates.push(dbUpdate(g.t.id, {bills: g.t.bills}));
+    if(additions.length) pending.push({tenant: g.t, newBills: [...g.t.bills, ...additions]});
   });
 
-  if(!anyGenerated){ showToast('No bills selected to generate.', false); return; }
+  if(!pending.length){ showToast('No bills selected to generate.', false); return; }
 
   setLoading(true,'Generating bills…');
   try {
-    await Promise.all(updates);
-    tenants = tenants.map(t => { const g=groups.find(g=>g.t.id===t.id); return g?g.t:t; });
+    await Promise.all(pending.map(p => dbUpdate(p.tenant.id, {bills: p.newBills})));
+    // Commit local state only after every save succeeded.
+    pending.forEach(p => { p.tenant.bills = p.newBills; });
     setLoading(false);
     closeGenModal();
     showToast('Bills generated ✓');
@@ -3526,6 +3317,7 @@ function clearFilters() {
   filterMonth    = '';
   filterStatuses = [];
   _showAllMonths = false;
+  tableRowLimit  = 50;
   renderAdmin();
 }
 // Close popovers when clicking outside
@@ -3599,6 +3391,7 @@ function showFullTimeline(expand) {
 // F-15: CSV EXPORT + PRINT VIEW
 // ─────────────────────────────────────────────
 function exportCSV() {
+  const dsLabel = { paid:'Paid', overdue:'Overdue', 'due-today':'Due Today', 'due-soon':'Due Soon', upcoming:'Upcoming', 'no-date':'Unscheduled' };
   const rows = [['Tenant Name','Unit','Access Code','Bill Label','Amount','Amount Paid','Remaining','Due Date','Status','Paid Date','Remark']];
   tenants.forEach(t => {
     if(!t.bills||!t.bills.length){
@@ -3607,9 +3400,10 @@ function exportCSV() {
       t.bills.forEach(b => {
         const paid = billTotalPaid(b);
         const remaining = billRemaining(b);
+        const status = dsLabel[getDueStatus(b)] || b.status;
         rows.push([
           t.name, t.unit, t.code,
-          b.label, b.amount, paid, Math.max(0,remaining), b.due||'', b.status, b.paidDate||'', b.remark||''
+          b.label, b.amount, paid, Math.max(0,remaining), b.due||'', status, b.paidDate||'', b.remark||''
         ]);
       });
     }
@@ -3631,7 +3425,6 @@ function exportCSV() {
 document.addEventListener('keydown', function(e) {
   if(e.key !== 'Escape') return;
   const _el = id => { const el=document.getElementById(id); return el&&el.classList.contains('open')?el:null; };
-  if(_el('receipt-modal'))  { closeReceiptModal(); return; }
   if(_el('paiddate-modal')) { closePaidModal();    return; }
   if(_el('genbills-modal')) { closeGenModal();     return; }
   if(_el('payinst-modal'))  { closePayInstModal(); return; }
