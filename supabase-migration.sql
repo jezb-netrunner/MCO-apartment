@@ -94,20 +94,25 @@ AS $$
 DECLARE
   recent_attempts int;
 BEGIN
+  -- Opportunistic cleanup: drop attempts older than 1 hour so the table stays small
+  -- without requiring pg_cron. Cheap because of the (code, attempted_at DESC) index.
+  DELETE FROM login_attempts WHERE attempted_at < now() - interval '1 hour';
+
   -- Rate limiting: count attempts for this code in the last 15 minutes
   SELECT count(*) INTO recent_attempts
   FROM login_attempts
   WHERE code = access_code
     AND attempted_at > now() - interval '15 minutes';
 
-  -- Record this attempt
-  INSERT INTO login_attempts (code) VALUES (access_code);
-
-  -- Block if too many attempts (5 per 15-minute window)
+  -- Block if too many attempts (5 per 15-minute window). We block BEFORE recording
+  -- so attackers cannot keep extending their own lockout window indefinitely.
   IF recent_attempts >= 5 THEN
     RAISE EXCEPTION 'Too many login attempts. Please wait and try again.'
       USING ERRCODE = 'P0001';
   END IF;
+
+  -- Record this attempt only after passing the rate-limit check.
+  INSERT INTO login_attempts (code) VALUES (access_code);
 
   -- Return matching tenant (only active, non-archived)
   RETURN QUERY

@@ -156,6 +156,13 @@
     color: var(--rust); font-size: 12px; margin-top: 14px;
     text-align: center; min-height: 16px; font-weight: 500;
   }
+  .link-btn {
+    background: none; border: none; color: var(--muted);
+    font-size: 12px; font-family: 'Inter', sans-serif;
+    cursor: pointer; text-decoration: underline;
+    transition: color 0.2s;
+  }
+  .link-btn:hover { color: var(--blue); }
   .powered-by {
     text-align: center; font-size: 11px; color: var(--muted);
     font-weight: 400; letter-spacing: 0.02em; opacity: 0.6;
@@ -1284,7 +1291,7 @@
 <div id="login-screen">
   <div class="login-wrap">
     <div class="login-wordmark">Orange Apartment</div>
-    <h1 class="login-heading">Welcome back.</h1>
+    <h1 class="login-heading">Welcome back</h1>
     <p class="login-sub">Sign in to manage your tenants, or enter your access code to view your bills.</p>
     <div class="login-tabs">
       <button class="login-tab active" onclick="switchTab('admin')">Admin</button>
@@ -1301,7 +1308,7 @@
       </div>
       <button class="btn-primary" onclick="adminLogin()">Enter Dashboard</button>
       <div style="text-align:center;margin-top:14px;">
-        <button onclick="sendPasswordReset()" style="background:none;border:none;color:var(--muted);font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;text-decoration:underline;transition:color 0.2s;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--muted)'">Forgot password?</button>
+        <button onclick="sendPasswordReset()" class="link-btn">Forgot password?</button>
       </div>
     </div>
     <div id="tenant-form" style="display:none">
@@ -1542,11 +1549,11 @@ function openStmtModal(tenantObj) {
   document.getElementById('stmt-to').value   = curYM;
   document.getElementById('stmt-title').textContent = 'Statement — '+_stmtTenant.name;
   document.getElementById('stmt-sub').textContent = 'Unit '+_stmtTenant.unit+' · Select date range to print or save as PDF.';
-  document.getElementById('stmt-modal').classList.add('open');
+  openModal('stmt-modal');
 }
 
 function closeStmtModal() {
-  document.getElementById('stmt-modal').classList.remove('open');
+  closeModalEl('stmt-modal');
   _stmtTenant = null;
 }
 
@@ -1707,6 +1714,30 @@ function setLoading(on, msg='Loading…') {
   }
   el.style.display = on ? 'flex' : 'none';
   if (on) document.getElementById('loading-msg').textContent = msg;
+}
+
+// Open a modal by id and focus its first focusable input/textarea/select.
+// Restores focus to the previously-focused element on close via openModal.return().
+function openModal(id) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  const previouslyFocused = document.activeElement;
+  el.classList.add('open');
+  // Defer focus to the next frame so layout is settled.
+  requestAnimationFrame(() => {
+    const target = el.querySelector('input:not([disabled]):not([type=hidden]), textarea:not([disabled]), select:not([disabled])');
+    if(target) target.focus();
+  });
+  el._restoreFocus = previouslyFocused;
+}
+function closeModalEl(id) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove('open');
+  if(el._restoreFocus && typeof el._restoreFocus.focus === 'function') {
+    try { el._restoreFocus.focus(); } catch {}
+    el._restoreFocus = null;
+  }
 }
 
 function showToast(msg, ok=true) {
@@ -2069,12 +2100,13 @@ function renderRows() {
     }).filter(Boolean);
   }
 
-  // Apply status filter — filter bills within each tenant by due status
+  // Apply status filter — filter bills within each tenant by due status.
+  // 'no-date' bills are not selectable in the UI; they're surfaced under 'upcoming'.
   if (filterStatuses.length) {
     filtered = filtered.map(t => {
       const bills = t.bills.filter(b => {
-        const ds = b.status === 'paid' ? 'paid' : getDueStatus(b);
-        // 'no-date' bills match when 'upcoming' is selected
+        const ds = getDueStatus(b);
+        if (ds === 'paid') return filterStatuses.includes('paid');
         if (ds === 'no-date') return filterStatuses.includes('upcoming');
         return filterStatuses.includes(ds);
       });
@@ -2279,7 +2311,7 @@ async function toggleStatus(tid,bi){
     _pendingPaid={tid,bi};
     document.getElementById('paiddate-bill-name').textContent = t.bills[bi].label + ' — ' + t.name;
     document.getElementById('paiddate-input').value=new Date().toISOString().slice(0,10);
-    document.getElementById('paiddate-modal').classList.add('open');
+    openModal('paiddate-modal');
   } else {
     t.bills[bi].status=next;
     t.bills[bi].paidDate='';
@@ -2289,7 +2321,7 @@ async function toggleStatus(tid,bi){
 }
 
 function closePaidModal(){
-  document.getElementById('paiddate-modal').classList.remove('open');
+  closeModalEl('paiddate-modal');
   _pendingPaid=null;
 }
 
@@ -2335,8 +2367,13 @@ async function permanentlyDeleteTenant(tid){
   const wrap = document.getElementById('archived-tenants-wrap');
   const label = wrap ? wrap.querySelector('[data-tid="'+tid+'"]') : null;
   const displayName = label ? label.textContent : 'this tenant';
-  if(!confirm('Permanently delete '+displayName+'? This will erase all their data and cannot be undone.')) return;
-  if(!confirm('Are you sure? This action is irreversible.')) return;
+  // Single, harder-to-misclick confirm: require the admin to type the tenant's name.
+  const typed = prompt('This will permanently delete ' + displayName + ' and all their billing data. This cannot be undone.\n\nType the tenant\'s name to confirm:');
+  if(typed === null) return; // cancelled
+  if(typed.trim().toLowerCase() !== displayName.trim().toLowerCase()){
+    showToast('Name did not match — deletion cancelled.', false);
+    return;
+  }
   setLoading(true,'Deleting permanently…');
   try {
     await dbDelete(tid);
@@ -2387,7 +2424,7 @@ function openAddModal(){
   document.getElementById('panel-bills').classList.remove('active');
   billForms=[{label:'Monthly Rent',amount:'',due:'',status:'unpaid'}];
   renderBillForms();
-  document.getElementById('tenant-modal').classList.add('open');
+  openModal('tenant-modal');
 }
 function openEditModal(tid){
   const t=tenants.find(t=>t.id===tid); if(!t) return; editingId=tid;
@@ -2399,7 +2436,8 @@ function openEditModal(tid){
   document.getElementById('m-phone').value=t.phone||'';
   document.getElementById('m-email').value=t.email||'';
   document.getElementById('m-movein').value=t.move_in_date||'';
-  billForms=t.bills.map(b=>({...b}));
+  // Bills tab manages bills via its own UI; billForms is only used for new tenants.
+  billForms = [];
   document.getElementById('modal-tabs').style.display='flex';
   document.getElementById('new-tenant-bills').style.display='none';
   document.querySelectorAll('.modal-tab').forEach((tab,i)=>tab.classList.toggle('active',i===0));
@@ -2407,10 +2445,10 @@ function openEditModal(tid){
   document.getElementById('panel-bills').classList.remove('active');
   document.getElementById('panel-templates').classList.remove('active');
   document.getElementById('new-bill-inline').style.display='none';
-  document.getElementById('tenant-modal').classList.add('open');
+  openModal('tenant-modal');
 }
 function closeModal(){
-  document.getElementById('tenant-modal').classList.remove('open');
+  closeModalEl('tenant-modal');
   editingId=null;
   cancelNewBill(); // ensure + Add bill button always reappears
 }
@@ -2873,10 +2911,13 @@ function randCode(){
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function formatDate(d) {
   if(!d) return '';
-  try {
-    const dateStr = String(d).slice(0,10);
-    return new Date(dateStr+'T00:00:00').toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'});
-  } catch { return String(d); }
+  const dateStr = String(d).slice(0,10);
+  const dt = new Date(dateStr+'T00:00:00');
+  if(isNaN(dt.getTime())) {
+    console.warn('formatDate: invalid date', d);
+    return String(d);
+  }
+  return dt.toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'});
 }
 document.addEventListener('DOMContentLoaded',()=>{
   const _wire = (id, fn) => { const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{if(e.target===el)fn();}); };
@@ -2899,6 +2940,9 @@ async function checkPasswordRecovery() {
   const refreshToken = params.get('refresh_token');
   if(type !== 'recovery' || !accessToken) return;
 
+  if(!refreshToken) {
+    console.warn('Password-recovery link missing refresh_token; the session may not persist.');
+  }
   // Set the session from the recovery token
   try {
     await _sbClient.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
@@ -2914,7 +2958,7 @@ async function checkPasswordRecovery() {
   const loginWrap = document.querySelector('.login-wrap');
   loginWrap.innerHTML = `
     <div class="login-wordmark">Orange Apartment</div>
-    <h1 class="login-heading">Set new password.</h1>
+    <h1 class="login-heading">Set a new password</h1>
     <p class="login-sub">Enter your new password below.</p>
     <div class="field">
       <label>New Password</label>
@@ -2971,7 +3015,7 @@ function quickMarkPaid(tid, bi) {
   _pendingPaid = {tid, bi};
   document.getElementById('paiddate-bill-name').textContent = t.bills[bi].label + ' — ' + t.name;
   document.getElementById('paiddate-input').value = new Date().toISOString().slice(0,10);
-  document.getElementById('paiddate-modal').classList.add('open');
+  openModal('paiddate-modal');
 }
 
 // ─────────────────────────────────────────────
@@ -3122,10 +3166,10 @@ function openGenModal() {
   const now = new Date();
   const ym = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   document.getElementById('gen-month-input').value = ym;
-  document.getElementById('genbills-modal').classList.add('open');
+  openModal('genbills-modal');
   refreshGenPreview();
 }
-function closeGenModal() { document.getElementById('genbills-modal').classList.remove('open'); }
+function closeGenModal() { closeModalEl('genbills-modal'); }
 
 function refreshGenPreview() {
   const val = document.getElementById('gen-month-input').value; // "YYYY-MM"
@@ -3341,10 +3385,10 @@ document.addEventListener('click', function(e) {
 function openPayInstModal() {
   document.getElementById('payinst-textarea').value = paymentInstructions || '';
   document.getElementById('payinst-error').style.display = 'none';
-  document.getElementById('payinst-modal').classList.add('open');
+  openModal('payinst-modal');
 }
 function closePayInstModal() {
-  document.getElementById('payinst-modal').classList.remove('open');
+  closeModalEl('payinst-modal');
 }
 async function savePayInst() {
   const val = document.getElementById('payinst-textarea').value.trim();
