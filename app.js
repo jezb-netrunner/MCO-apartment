@@ -454,6 +454,205 @@ function renderActionRequired() {
   </div>`;
 }
 
+// ─────────────────────────────────────────────
+// INSIGHTS PANEL (admin only)
+let _insightsOpen = true;
+function toggleInsights() {
+  _insightsOpen = !_insightsOpen;
+  renderAdmin();
+}
+// Three small SVG charts:
+//  1. 6-month line: ₱ billed vs ₱ collected per month
+//  2. Status donut: count of bills by current due-status
+//  3. Top tenants bar: outstanding balance per tenant (top 6)
+// ─────────────────────────────────────────────
+function _ymKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function _ymLabel(ym) {
+  // ym is "YYYY-MM"; use day 02 to avoid TZ-edge surprises
+  return new Date(ym+'-02').toLocaleString('default',{month:'short'});
+}
+function _last6Months() {
+  const out = [];
+  const now = new Date();
+  for(let i=5;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    out.push(_ymKey(d));
+  }
+  return out;
+}
+// "Collected in month M" = sum of payment-log entries dated in M, plus the
+// full amount of any bill marked paid in M with no payment-log entries
+// (back-compat for bills that pre-date the payment log).
+function _collectedInMonth(ym) {
+  let total = 0;
+  tenants.forEach(t => (t.bills||[]).forEach(b => {
+    const payments = b.payments || [];
+    if(payments.length){
+      payments.forEach(p => { if(p.date && p.date.startsWith(ym)) total += Number(p.amount)||0; });
+    } else if(b.status==='paid' && b.paidDate && b.paidDate.startsWith(ym)){
+      total += Number(b.amount)||0;
+    }
+  }));
+  return total;
+}
+function _billedInMonth(ym) {
+  let total = 0;
+  tenants.forEach(t => (t.bills||[]).forEach(b => {
+    if(b.due && b.due.startsWith(ym)) total += Number(b.amount)||0;
+  }));
+  return total;
+}
+
+function renderInsights() {
+  // No tenants → don't render the panel at all.
+  if(!tenants.length) return '';
+
+  // ── 1. 6-month line chart ──
+  const months = _last6Months();
+  const billed = months.map(_billedInMonth);
+  const collected = months.map(_collectedInMonth);
+  const lineMax = Math.max(1, ...billed, ...collected);
+  const W = 560, H = 160, PL = 36, PR = 12, PT = 16, PB = 28;
+  const innerW = W - PL - PR;
+  const innerH = H - PT - PB;
+  const xAt = i => PL + (months.length===1 ? innerW/2 : (i*innerW)/(months.length-1));
+  const yAt = v => PT + innerH - (v/lineMax)*innerH;
+  const billedPath    = billed.map((v,i)=>(i?'L':'M')+xAt(i).toFixed(1)+','+yAt(v).toFixed(1)).join(' ');
+  const collectedPath = collected.map((v,i)=>(i?'L':'M')+xAt(i).toFixed(1)+','+yAt(v).toFixed(1)).join(' ');
+  // Y-axis grid lines (4 ticks)
+  const gridLines = [0, 0.33, 0.66, 1].map(f => {
+    const y = (PT + innerH - f*innerH).toFixed(1);
+    const v = Math.round(lineMax * f);
+    const lbl = v >= 1000 ? (v/1000).toFixed(v>=10000?0:1)+'k' : v;
+    return '<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" class="cg-grid"/>'
+         + '<text x="'+(PL-6)+'" y="'+y+'" class="cg-axis cg-axis-y">'+lbl+'</text>';
+  }).join('');
+  const xLabels = months.map((ym,i) =>
+    '<text x="'+xAt(i).toFixed(1)+'" y="'+(H-8)+'" class="cg-axis cg-axis-x">'+_ymLabel(ym)+'</text>'
+  ).join('');
+  const dots = months.map((ym,i) => {
+    const bV = billed[i], cV = collected[i];
+    return '<circle cx="'+xAt(i).toFixed(1)+'" cy="'+yAt(bV).toFixed(1)+'" r="3" class="cg-dot cg-dot-billed"><title>Billed '+_ymLabel(ym)+': ₱'+bV.toLocaleString()+'</title></circle>'
+         + '<circle cx="'+xAt(i).toFixed(1)+'" cy="'+yAt(cV).toFixed(1)+'" r="3" class="cg-dot cg-dot-collected"><title>Collected '+_ymLabel(ym)+': ₱'+cV.toLocaleString()+'</title></circle>';
+  }).join('');
+  const lineSvg = '<svg viewBox="0 0 '+W+' '+H+'" class="cg-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Bills billed vs collected over the last 6 months">'
+    + gridLines
+    + '<path d="'+billedPath+'" class="cg-line cg-line-billed"/>'
+    + '<path d="'+collectedPath+'" class="cg-line cg-line-collected"/>'
+    + dots + xLabels
+    + '</svg>';
+
+  // ── 2. Status donut ──
+  // Count active bills + paid (this month) for a snapshot of where things stand.
+  const statusCounts = { overdue:0, 'due-today':0, 'due-soon':0, upcoming:0, 'no-date':0, paid:0 };
+  tenants.forEach(t => (t.bills||[]).forEach(b => {
+    const ds = getDueStatus(b);
+    if(statusCounts[ds] !== undefined) statusCounts[ds]++;
+  }));
+  // Combine due-today into overdue colour group for visual clarity (both red).
+  const donutSlices = [
+    { key:'overdue',  label:'Overdue',   value: statusCounts.overdue + statusCounts['due-today'], color:'#c0392b' },
+    { key:'due-soon', label:'Due Soon',  value: statusCounts['due-soon'], color:'#e67e22' },
+    { key:'upcoming', label:'Upcoming',  value: statusCounts.upcoming + statusCounts['no-date'], color:'#5b88e6' },
+    { key:'paid',     label:'Paid',      value: statusCounts.paid, color:'#1e8449' }
+  ];
+  const donutTotal = donutSlices.reduce((s,x)=>s+x.value, 0);
+  const DW = 180, DH = 180, DCx = 90, DCy = 90, Rout = 70, Rin = 44;
+  let donutSvg;
+  if(donutTotal === 0){
+    donutSvg = '<svg viewBox="0 0 '+DW+' '+DH+'" class="cg-svg cg-donut-svg" role="img" aria-label="No bills">'
+      + '<circle cx="'+DCx+'" cy="'+DCy+'" r="'+Rout+'" class="cg-donut-empty"/>'
+      + '<text x="'+DCx+'" y="'+DCy+'" class="cg-donut-empty-text">No bills</text>'
+      + '</svg>';
+  } else {
+    let cumAngle = -Math.PI/2; // start at 12 o'clock
+    const arcs = donutSlices.filter(s=>s.value>0).map(s => {
+      const frac = s.value / donutTotal;
+      const a0 = cumAngle, a1 = cumAngle + frac*2*Math.PI;
+      cumAngle = a1;
+      // Edge case: a single 100% slice can't be drawn as an arc; render two halves.
+      if(frac >= 0.999){
+        return '<circle cx="'+DCx+'" cy="'+DCy+'" r="'+((Rout+Rin)/2)+'" fill="none" stroke="'+s.color+'" stroke-width="'+(Rout-Rin)+'"><title>'+s.label+': '+s.value+'</title></circle>';
+      }
+      const x0 = DCx + Rout*Math.cos(a0), y0 = DCy + Rout*Math.sin(a0);
+      const x1 = DCx + Rout*Math.cos(a1), y1 = DCy + Rout*Math.sin(a1);
+      const x2 = DCx + Rin*Math.cos(a1),  y2 = DCy + Rin*Math.sin(a1);
+      const x3 = DCx + Rin*Math.cos(a0),  y3 = DCy + Rin*Math.sin(a0);
+      const large = frac > 0.5 ? 1 : 0;
+      const d = 'M'+x0.toFixed(2)+','+y0.toFixed(2)
+              + ' A'+Rout+','+Rout+' 0 '+large+' 1 '+x1.toFixed(2)+','+y1.toFixed(2)
+              + ' L'+x2.toFixed(2)+','+y2.toFixed(2)
+              + ' A'+Rin+','+Rin+' 0 '+large+' 0 '+x3.toFixed(2)+','+y3.toFixed(2)
+              + ' Z';
+      return '<path d="'+d+'" fill="'+s.color+'"><title>'+s.label+': '+s.value+'</title></path>';
+    }).join('');
+    donutSvg = '<svg viewBox="0 0 '+DW+' '+DH+'" class="cg-svg cg-donut-svg" role="img" aria-label="Bill status distribution">'
+      + arcs
+      + '<text x="'+DCx+'" y="'+(DCy-4)+'" class="cg-donut-num">'+donutTotal+'</text>'
+      + '<text x="'+DCx+'" y="'+(DCy+12)+'" class="cg-donut-lbl">bills</text>'
+      + '</svg>';
+  }
+  const donutLegend = '<div class="cg-legend">'
+    + donutSlices.map(s => '<span class="cg-legend-item"><span class="cg-legend-dot" style="background:'+s.color+'"></span>'+s.label+' <span class="cg-legend-val">'+s.value+'</span></span>').join('')
+    + '</div>';
+
+  // ── 3. Top tenants by outstanding balance ──
+  const tenantBalances = tenants.map(t => ({
+    name: t.name,
+    unit: t.unit,
+    id: t.id,
+    balance: (t.bills||[]).filter(b=>b.status!=='paid').reduce((s,b)=>s+Math.max(0,billRemaining(b)),0)
+  })).filter(x => x.balance > 0).sort((a,b)=>b.balance-a.balance).slice(0,6);
+  let barSvg;
+  if(!tenantBalances.length){
+    barSvg = '<div class="cg-bar-empty">All tenants are settled.</div>';
+  } else {
+    const barMax = tenantBalances[0].balance || 1;
+    barSvg = '<div class="cg-bars">'
+      + tenantBalances.map(x => {
+          const pct = (x.balance / barMax * 100).toFixed(1);
+          return '<div class="cg-bar-row" onclick="filterTenantId=\''+esc(x.id)+'\';applyFilters()" title="Filter to '+esc(x.name)+'">'
+               + '<div class="cg-bar-name">'+esc(x.name)+' <span class="cg-bar-unit">· Unit '+esc(x.unit)+'</span></div>'
+               + '<div class="cg-bar-track"><div class="cg-bar-fill" style="width:'+pct+'%"></div></div>'
+               + '<div class="cg-bar-val">&#8369;'+x.balance.toLocaleString()+'</div>'
+               + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  // ── Compose panel ──
+  return '<div class="insights-panel" id="insights-panel">'
+    + '<button class="insights-toggle" onclick="toggleInsights()" aria-expanded="'+(_insightsOpen?'true':'false')+'">'
+    +   '<span class="insights-arrow'+(_insightsOpen?' open':'')+'">›</span> Insights'
+    + '</button>'
+    + (_insightsOpen
+        ? '<div class="insights-body">'
+          + '<div class="insights-grid">'
+          +   '<div class="insights-card insights-card-line">'
+          +     '<div class="insights-card-title">Billed vs Collected <span class="insights-card-sub">last 6 months</span></div>'
+          +     lineSvg
+          +     '<div class="cg-legend cg-legend-line">'
+          +       '<span class="cg-legend-item"><span class="cg-legend-dot" style="background:#4169e1"></span>Billed</span>'
+          +       '<span class="cg-legend-item"><span class="cg-legend-dot" style="background:#1e8449"></span>Collected</span>'
+          +     '</div>'
+          +   '</div>'
+          +   '<div class="insights-card insights-card-donut">'
+          +     '<div class="insights-card-title">Bill Status</div>'
+          +     donutSvg
+          +     donutLegend
+          +   '</div>'
+          +   '<div class="insights-card insights-card-bars">'
+          +     '<div class="insights-card-title">Top Outstanding <span class="insights-card-sub">click to filter</span></div>'
+          +     barSvg
+          +   '</div>'
+          + '</div>'
+          + '</div>'
+        : '')
+    + '</div>';
+}
+
 function renderAdmin() {
   const totalDue = tenants.reduce((s,t)=>s+t.bills.filter(b=>b.status!=='paid').reduce((a,b)=>a+Math.max(0,billRemaining(b)),0),0);
   const unpaid   = tenants.reduce((s,t)=>s+t.bills.filter(b=>b.status==='unpaid'||b.status==='overdue').length,0);
@@ -466,6 +665,7 @@ function renderAdmin() {
       <div class="summary-stat"><div class="stat-label">Unpaid Bills</div><div class="stat-value">${unpaid}</div></div>
       <div class="summary-stat"><div class="stat-label">Balance Outstanding</div><div class="stat-value blue">&#8369;${totalDue.toLocaleString()}</div></div>
     </div>
+    ${renderInsights()}
     <div class="pay-inst-card">
       <div class="pay-inst-head">
         <div class="pay-inst-label">&#128176; Payment Instructions</div>
@@ -491,6 +691,7 @@ function renderAdmin() {
       </div>
     </div>
     <div class="filter-toolbar" id="filter-toolbar">
+      <button class="filter-toolbar-btn${filterMonth===_currentYM()?' active':''}" onclick="setFilterThisMonth()" title="Show only bills due this month">This Month</button>
       <div style="position:relative;display:inline-block;" id="filter-popover-wrap">
         <button class="filter-toolbar-btn${hasActiveFilters()?' active':''}" onclick="toggleFilterPopover()">&#9881; Filter${hasActiveFilters()?' ('+activeFilterCount()+')':''}</button>
         <div class="filter-popover" id="filter-popover">
@@ -791,16 +992,39 @@ function renderTableView(c, filtered) {
     const b = r.bill, t = r.tenant;
     const ds = b.status === 'paid' ? 'paid' : getDueStatus(b);
     const remaining = Math.max(0, billRemaining(b));
+    const isPaid = b.status === 'paid';
+    const tidAttr = esc(t.id);
+    // Status badge cycles status on click (matches card-view behavior).
+    const statusBtn = '<button class="mini-status '+(dueStatusClass[ds]||'status-unpaid')+'" '
+      + 'onclick="toggleStatus(\''+tidAttr+'\','+r.bi+')" '
+      + 'title="Click to cycle status" '
+      + 'style="cursor:pointer;font-size:9px;border:none;">'
+      + (dueStatusLabel[ds]||ds)
+      + '</button>';
+    // Amount cell becomes an editable input on click.
+    const amountCell = '<td class="td-amount td-amt-edit" '
+      + 'data-tid="'+tidAttr+'" data-bi="'+r.bi+'" '
+      + 'onclick="enterAmountEdit(this)" '
+      + 'title="Click to edit amount">'
+      + '&#8369;'+Number(b.amount).toLocaleString()
+      + '</td>';
+    const actionsCell = '<td class="td-actions">'
+      + (isPaid
+          ? '<button class="row-quick-btn revert" onclick="revertToPending(\''+tidAttr+'\','+r.bi+')" title="Revert to unpaid" aria-label="Revert">↺</button>'
+          : '<button class="row-quick-btn pay" onclick="quickMarkPaid(\''+tidAttr+'\','+r.bi+')" title="Mark paid" aria-label="Mark paid">✓ Paid</button>')
+      + '<button class="row-quick-btn edit" onclick="openEditBillFromTable(\''+tidAttr+'\','+r.bi+')" title="Edit bill" aria-label="Edit">✎</button>'
+      + '</td>';
     return '<tr>' +
-      '<td><span class="mini-status '+(dueStatusClass[ds]||'status-unpaid')+'" style="cursor:default;font-size:9px;">'+(dueStatusLabel[ds]||ds)+'</span></td>' +
+      '<td>'+statusBtn+'</td>' +
       '<td>'+esc(t.name)+'</td>' +
       '<td>'+esc(t.unit)+'</td>' +
       '<td>'+esc(b.label)+'</td>' +
-      '<td class="td-amount">&#8369;'+Number(b.amount).toLocaleString()+'</td>' +
+      amountCell +
       '<td class="td-amount">'+(remaining ? '&#8369;'+remaining.toLocaleString() : '<span style="color:var(--green)">—</span>')+'</td>' +
       '<td class="td-date">'+(b.due ? formatDate(b.due) : '—')+'</td>' +
       '<td class="td-date">'+(b.paidDate ? formatDate(b.paidDate) : '—')+'</td>' +
       '<td class="td-remark" title="'+(b.remark ? esc(b.remark) : '')+'">'+(b.remark ? esc(b.remark) : '')+'</td>' +
+      actionsCell +
     '</tr>';
   }).join('');
 
@@ -820,9 +1044,82 @@ function renderTableView(c, filtered) {
       thHtml('due','Due Date') +
       thHtml('paidDate','Paid Date') +
       thHtml('remark','Remarks') +
+      '<th class="th-actions">Actions</th>' +
     '</tr></thead>' +
     '<tbody>'+tbody+'</tbody>' +
   '</table></div>' + showMoreBtn;
+}
+
+// ── INLINE TABLE EDITING ──
+// Open the tenant edit modal directly on the Bills tab and scroll to the bill.
+// Always force-render all paid bills so that targeting a paid bill outside the
+// default 3-row preview still works.
+function openEditBillFromTable(tid, bi){
+  openEditModal(tid);
+  setTimeout(() => {
+    const tabs = document.querySelectorAll('.modal-tab');
+    if(tabs[1]) tabs[1].click();
+    setTimeout(() => {
+      if(typeof renderBillListItems === 'function') renderBillListItems(true);
+      if(typeof editBillInline === 'function') editBillInline(bi);
+      const target = document.getElementById('bill-edit-inline-'+bi);
+      if(target && target.scrollIntoView) target.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 30);
+  }, 30);
+}
+
+// Convert an amount cell into an inline input. Enter or blur saves; Escape cancels.
+function enterAmountEdit(td){
+  if(td.querySelector('input')) return; // already editing
+  const tid = td.dataset.tid;
+  const bi  = Number(td.dataset.bi);
+  const t = tenants.find(t=>t.id===tid);
+  if(!t || !t.bills[bi]) return;
+  const original = Number(t.bills[bi].amount);
+  td.innerHTML = '<input type="text" inputmode="decimal" value="'+original+'" '
+    + 'class="td-amt-input" onblur="commitAmountEdit(this)" '
+    + 'onkeydown="if(event.key===\'Enter\'){this.blur();}else if(event.key===\'Escape\'){this.dataset.cancel=\'1\';this.blur();}">';
+  const input = td.querySelector('input');
+  input.focus();
+  input.select();
+}
+
+async function commitAmountEdit(input){
+  const td  = input.closest('td');
+  const tid = td.dataset.tid;
+  const bi  = Number(td.dataset.bi);
+  const t = tenants.find(t=>t.id===tid);
+  if(!t || !t.bills[bi]) return;
+  const original = Number(t.bills[bi].amount);
+  // Cancel path — restore original cell content.
+  if(input.dataset.cancel){
+    td.innerHTML = '&#8369;'+original.toLocaleString();
+    return;
+  }
+  const raw = String(input.value).replace(/,/g,'').trim();
+  const parsed = Number(raw);
+  if(isNaN(parsed) || parsed < 0){
+    showToast('Amount must be a non-negative number.', false);
+    td.innerHTML = '&#8369;'+original.toLocaleString();
+    return;
+  }
+  const next = Math.round(parsed * 100) / 100;
+  if(next === original){
+    td.innerHTML = '&#8369;'+original.toLocaleString();
+    return;
+  }
+  // Commit to DB then update local state and re-render.
+  const billsCopy = structuredClone(t.bills);
+  billsCopy[bi].amount = next;
+  try {
+    await dbUpdate(t.id, {bills: billsCopy});
+    t.bills = billsCopy;
+    showToast('Amount updated.');
+    renderRows();
+  } catch(e){
+    showToast('Save failed: '+e.message, false);
+    td.innerHTML = '&#8369;'+original.toLocaleString();
+  }
 }
 
 // Pending paid-date action
@@ -1822,6 +2119,15 @@ function renderMonthDropdown(showAll) {
   _showAllMonths = !!showAll;
   const sel = document.getElementById('fp-month');
   if (sel) { sel.innerHTML = renderMonthOptions(showAll); sel.value = filterMonth; }
+}
+function _currentYM() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function setFilterThisMonth() {
+  const ym = _currentYM();
+  filterMonth = (filterMonth === ym) ? '' : ym; // toggle off if already active
+  applyFilters();
 }
 function hasActiveFilters() { return !!(filterTenantId || filterMonth || filterStatuses.length); }
 function activeFilterCount() {
